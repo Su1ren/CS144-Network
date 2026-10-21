@@ -3,6 +3,7 @@
 #include "util.hh"
 
 #include <arpa/inet.h>
+#include <array>
 #include <cstring>
 #include <memory>
 #include <netdb.h>
@@ -59,7 +60,7 @@ Address::Address(const string &node, const string &service, const addrinfo &hint
 
     // put resolved_address in a wrapper so it will get freed if we have to throw an exception
     auto addrinfo_deleter = [](addrinfo *const x) { freeaddrinfo(x); };
-    unique_ptr<addrinfo, decltype(addrinfo_deleter)> wrapped_address(resolved_address, move(addrinfo_deleter));
+    unique_ptr<addrinfo, decltype(addrinfo_deleter)> wrapped_address(resolved_address, std::move(addrinfo_deleter));
 
     // assign to our private members (making sure size fits)
     *this = Address(wrapped_address->ai_addr, wrapped_address->ai_addrlen);
@@ -88,8 +89,8 @@ Address::Address(const string &ip, const uint16_t port)
 
 // accessors
 pair<string, uint16_t> Address::ip_port() const {
-    array<char, NI_MAXHOST> ip{};
-    array<char, NI_MAXSERV> port{};
+    array<char, NI_MAXHOST> ip{0};
+    array<char, NI_MAXSERV> port{0};
 
     const int gni_ret =
         getnameinfo(_address, _size, ip.data(), ip.size(), port.data(), port.size(), NI_NUMERICHOST | NI_NUMERICSERV);
