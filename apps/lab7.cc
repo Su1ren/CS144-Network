@@ -188,7 +188,7 @@ void program_body(bool is_client, const string &bounce_host, const string &bounc
     TCPSocketLab7 sock =
         is_client ? TCPSocketLab7{{"192.168.0.50"}, {"192.168.0.1"}} : TCPSocketLab7{{"172.16.0.100"}, {"172.16.0.1"}};
 
-    atomic<bool> exit_flag {};
+    atomic<bool> exit_flag{};
 
     /* set up the network */
     thread network_thread([&]() {
@@ -208,30 +208,32 @@ void program_body(bool is_client, const string &bounce_host, const string &bounc
             });
 
             // Frames from router to host
-            event_loop.add_rule(sock.adapter().frame_fd(),
-                                Direction::Out,
-                                [&] {
-                                    auto &f = router.interface(host_side).frames_out();
-                                    if (debug) {
-                                        cerr << "     Router->host:     " << summary(f.front()) << "\n";
-                                    }
-                                    sock.adapter().frame_fd().write(f.front().serialize());
-                                    f.pop();
-                                },
-                                [&] { return not router.interface(host_side).frames_out().empty(); });
+            event_loop.add_rule(
+                sock.adapter().frame_fd(),
+                Direction::Out,
+                [&] {
+                    auto &f = router.interface(host_side).frames_out();
+                    if (debug) {
+                        cerr << "     Router->host:     " << summary(f.front()) << "\n";
+                    }
+                    sock.adapter().frame_fd().write(f.front().serialize());
+                    f.pop();
+                },
+                [&] { return not router.interface(host_side).frames_out().empty(); });
 
             // Frames from router to Internet
-            event_loop.add_rule(internet_socket,
-                                Direction::Out,
-                                [&] {
-                                    auto &f = router.interface(internet_side).frames_out();
-                                    if (debug) {
-                                        cerr << "     Router->Internet: " << summary(f.front()) << "\n";
-                                    }
-                                    internet_socket.sendto(bounce_address, f.front().serialize());
-                                    f.pop();
-                                },
-                                [&] { return not router.interface(internet_side).frames_out().empty(); });
+            event_loop.add_rule(
+                internet_socket,
+                Direction::Out,
+                [&] {
+                    auto &f = router.interface(internet_side).frames_out();
+                    if (debug) {
+                        cerr << "     Router->Internet: " << summary(f.front()) << "\n";
+                    }
+                    internet_socket.sendto(bounce_address, f.front().serialize());
+                    f.pop();
+                },
+                [&] { return not router.interface(internet_side).frames_out().empty(); });
 
             // Frames from Internet to router
             event_loop.add_rule(internet_socket, Direction::In, [&] {

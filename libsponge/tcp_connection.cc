@@ -95,7 +95,8 @@ void TCPConnection::connect() {
 }
 
 size_t TCPConnection::write(const string &data) {
-    if (!data.size()) return 0;
+    if (!data.size())
+        return 0;
     size_t actually_write = _sender.stream_in().write(data);
     _sender.fill_window();
     real_send();

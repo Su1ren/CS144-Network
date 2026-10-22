@@ -44,9 +44,9 @@ void TCPSpongeSocket<AdaptT>::_tcp_loop(const function<bool()> &condition) {
 template <typename AdaptT>
 TCPSpongeSocket<AdaptT>::TCPSpongeSocket(pair<FileDescriptor, FileDescriptor> data_socket_pair,
                                          AdaptT &&datagram_interface)
-    : LocalStreamSocket(move(data_socket_pair.first))
-    , _thread_data(move(data_socket_pair.second))
-    , _datagram_adapter(move(datagram_interface)) {
+    : LocalStreamSocket(std::move(data_socket_pair.first))
+    , _thread_data(std::move(data_socket_pair.second))
+    , _datagram_adapter(std::move(datagram_interface)) {
     _thread_data.set_blocking(false);
 }
 
@@ -73,23 +73,23 @@ void TCPSpongeSocket<AdaptT>::_initialize_TCP(const TCPConfig &config) {
     //    given to underlying datagram socket)
 
     // rule 1: read from filtered packet stream and dump into TCPConnection
-    _eventloop.add_rule(_datagram_adapter,
-                        Direction::In,
-                        [&] {
-                            auto seg = _datagram_adapter.read();
-                            if (seg) {
-                                _tcp->segment_received(move(seg.value()));
-                            }
+    _eventloop.add_rule(
+        _datagram_adapter,
+        Direction::In,
+        [&] {
+            auto seg = _datagram_adapter.read();
+            if (seg) {
+                _tcp->segment_received(std::move(seg.value()));
+            }
 
-                            // debugging output:
-                            if (_thread_data.eof() and _tcp.value().bytes_in_flight() == 0 and not _fully_acked) {
-                                cerr << "DEBUG: Outbound stream to "
-                                     << _datagram_adapter.config().destination.to_string()
-                                     << " has been fully acknowledged.\n";
-                                _fully_acked = true;
-                            }
-                        },
-                        [&] { return _tcp->active(); });
+            // debugging output:
+            if (_thread_data.eof() and _tcp.value().bytes_in_flight() == 0 and not _fully_acked) {
+                cerr << "DEBUG: Outbound stream to " << _datagram_adapter.config().destination.to_string()
+                     << " has been fully acknowledged.\n";
+                _fully_acked = true;
+            }
+        },
+        [&] { return _tcp->active(); });
 
     // rule 2: read from pipe into outbound buffer
     _eventloop.add_rule(
@@ -98,7 +98,7 @@ void TCPSpongeSocket<AdaptT>::_initialize_TCP(const TCPConfig &config) {
         [&] {
             const auto data = _thread_data.read(_tcp->remaining_outbound_capacity());
             const auto len = data.size();
-            const auto amount_written = _tcp->write(move(data));
+            const auto amount_written = _tcp->write(std::move(data));
             if (amount_written != len) {
                 throw runtime_error("TCPConnection::write() accepted less than advertised length");
             }
@@ -130,7 +130,7 @@ void TCPSpongeSocket<AdaptT>::_initialize_TCP(const TCPConfig &config) {
             // write (i.e., only pop what was actually written).
             const size_t amount_to_write = min(size_t(65536), inbound.buffer_size());
             const std::string buffer = inbound.peek_output(amount_to_write);
-            const auto bytes_written = _thread_data.write(move(buffer), false);
+            const auto bytes_written = _thread_data.write(std::move(buffer), false);
             inbound.pop_output(bytes_written);
 
             if (inbound.eof() or inbound.error()) {
@@ -151,15 +151,16 @@ void TCPSpongeSocket<AdaptT>::_initialize_TCP(const TCPConfig &config) {
         });
 
     // rule 4: read outbound segments from TCPConnection and send as datagrams
-    _eventloop.add_rule(_datagram_adapter,
-                        Direction::Out,
-                        [&] {
-                            while (not _tcp->segments_out().empty()) {
-                                _datagram_adapter.write(_tcp->segments_out().front());
-                                _tcp->segments_out().pop();
-                            }
-                        },
-                        [&] { return not _tcp->segments_out().empty(); });
+    _eventloop.add_rule(
+        _datagram_adapter,
+        Direction::Out,
+        [&] {
+            while (not _tcp->segments_out().empty()) {
+                _datagram_adapter.write(_tcp->segments_out().front());
+                _tcp->segments_out().pop();
+            }
+        },
+        [&] { return not _tcp->segments_out().empty(); });
 }
 
 //! \brief Call [socketpair](\ref man2::socketpair) and return connected Unix-domain sockets of specified type
@@ -174,7 +175,7 @@ static inline pair<FileDescriptor, FileDescriptor> socket_pair_helper(const int 
 //! \param[in] datagram_interface is the underlying interface (e.g. to UDP, IP, or Ethernet)
 template <typename AdaptT>
 TCPSpongeSocket<AdaptT>::TCPSpongeSocket(AdaptT &&datagram_interface)
-    : TCPSpongeSocket(socket_pair_helper(SOCK_STREAM), move(datagram_interface)) {}
+    : TCPSpongeSocket(socket_pair_helper(SOCK_STREAM), std::move(datagram_interface)) {}
 
 template <typename AdaptT>
 TCPSpongeSocket<AdaptT>::~TCPSpongeSocket() {

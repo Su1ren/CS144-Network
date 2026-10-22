@@ -199,7 +199,7 @@ class Network {
             to_send.front().payload() = to_send.front().payload().concatenate();
             cerr << "Transferring frame from " << src_name << " to " << dst_name << ": " << summary(to_send.front())
                  << "\n";
-            dst.recv_frame(move(to_send.front()));
+            dst.recv_frame(std::move(to_send.front()));
             to_send.pop();
         }
     }

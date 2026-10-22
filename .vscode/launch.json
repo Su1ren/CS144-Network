@@ -1,0 +1,60 @@
+{
+    // 使用 IntelliSense 了解相关属性。
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    // 需要安装扩展：CodeLLDB (vadimcn.vscode-lldb)
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // 固定参数：./apps/webget cs144.keithw.org /hello
+            "name": "Debug webget (hello)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/apps/webget",
+            "args": [
+                "cs144.keithw.org",
+                "/hello"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "terminal": "integrated",
+            "preLaunchTask": "build webget"
+        },
+        {
+            // 启动时提示输入 HOST 和 PATH
+            "name": "Debug webget (custom host/path)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/apps/webget",
+            "args": [
+                "${input:webgetHost}",
+                "${input:webgetPath}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "terminal": "integrated",
+            "preLaunchTask": "build webget"
+        },
+        {
+            // 先手动运行 apps/webget，再附加调试器（适合调试网络阻塞/长时间运行场景）
+            "name": "Attach to webget",
+            "type": "lldb",
+            "request": "attach",
+            "program": "${workspaceFolder}/apps/webget"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "webgetHost",
+            "type": "promptString",
+            "description": "服务器主机名（如 stanford.edu）",
+            "default": "cs144.keithw.org"
+        },
+        {
+            "id": "webgetPath",
+            "type": "promptString",
+            "description": "URL 路径（如 /class/cs144）",
+            "default": "/hello"
+        }
+    ]
+}

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <optional>
 #include <thread>
+#include <utility>
 #include <vector>
 
 //! Multithreaded wrapper around TCPConnection that approximates the Unix sockets API

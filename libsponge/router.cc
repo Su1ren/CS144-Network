@@ -17,7 +17,7 @@ using namespace std;
 // You will need to add private members to the class declaration in `router.hh`
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 //! \param[in] route_prefix The "up-to-32-bit" IPv4 address prefix to match the datagram's destination address against
 //! \param[in] prefix_length For this route to be applicable, how many high-order (most-significant) bits of the route_prefix will need to match the corresponding bits of the datagram's destination address?
@@ -30,26 +30,33 @@ void Router::add_route(const uint32_t route_prefix,
     cerr << "DEBUG: adding route " << Address::from_ipv4_numeric(route_prefix).ip() << "/" << int(prefix_length)
          << " => " << (next_hop.has_value() ? next_hop->ip() : "(direct)") << " on interface " << interface_num << "\n";
 
-    _routing_table.push_back(RouteEntry(route_prefix, prefix_length, next_hop, interface_num, prefix_length == 0 ? 0 : numeric_limits<int>::min() >> (prefix_length - 1)));
+    _routing_table.push_back(RouteEntry(route_prefix,
+                                        prefix_length,
+                                        next_hop,
+                                        interface_num,
+                                        prefix_length == 0 ? 0 : numeric_limits<int>::min() >> (prefix_length - 1)));
 }
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
     // check TTL
-    if (dgram.header().ttl <= 1) return;
+    if (dgram.header().ttl <= 1)
+        return;
     // longest prefix match
     uint32_t destination = dgram.header().dst;
     int match_idx = -1;
     int max_matched_len = -1;
     for (size_t i = 0; i < _routing_table.size(); i++) {
         auto mask = _routing_table[i]._prefix_mask;
-        if ((destination & mask) == _routing_table[i]._route_prefix && max_matched_len < _routing_table[i]._prefix_length) {
+        if ((destination & mask) == _routing_table[i]._route_prefix &&
+            max_matched_len < _routing_table[i]._prefix_length) {
             match_idx = i;
             max_matched_len = _routing_table[i]._prefix_length;
         }
     }
     // if no match, drop the datagram
-    if (match_idx == -1) return;
+    if (match_idx == -1)
+        return;
     // decrement TTL
     dgram.header().ttl -= 1;
     // send the datagram

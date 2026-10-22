@@ -10,7 +10,7 @@ TCPOverIPv4OverEthernetAdapter::TCPOverIPv4OverEthernetAdapter(TapFD &&tap,
                                                                const EthernetAddress &eth_address,
                                                                const Address &ip_address,
                                                                const Address &next_hop)
-    : _tap(move(tap)), _interface(eth_address, ip_address), _next_hop(next_hop) {
+    : _tap(std::move(tap)), _interface(eth_address, ip_address), _next_hop(next_hop) {
     // Linux seems to ignore the first frame sent on a TAP device, so send a dummy frame to prime the pump :-(
     EthernetFrame dummy_frame;
     _tap.write(dummy_frame.serialize());
