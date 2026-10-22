@@ -20,13 +20,13 @@ size_t ByteStream::write(const string &data) {
         return 0;
     }
 
-    const size_t tail = (_head + _size) % _capacity;
-    const size_t first = min(n, _capacity - tail);
+    const size_t tail = (_head + _size) % _capacity;  // ring buffer 中空闲的起始位置
+    const size_t first = min(n, _capacity - tail);    // 第一段拷贝的长度，可能会 wrap-around
 
-    memcpy(_buffer.data() + tail, data.data(), first);
-    memcpy(_buffer.data(), data.data() + first, n - first);
+    memcpy(_buffer.data() + tail, data.data(), first);       // 拷贝第一段
+    memcpy(_buffer.data(), data.data() + first, n - first);  // 如果数据超过了尾部，拷贝剩余的部分到 ring buffer 的开头
 
-    _size += n;
+    _size += n;  // 更新 ring buffer 中的有效数据长度
     _total_written += n;
     return n;
 }
