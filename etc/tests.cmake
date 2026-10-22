@@ -209,26 +209,40 @@ add_test(NAME t_isnD_128K_8K_lL      COMMAND "${PROJECT_SOURCE_DIR}/txrx.sh" -is
 #add_test(NAME t_isoD_128K_8K_L   COMMAND "${PROJECT_SOURCE_DIR}/txrx.sh" -isDod 128K -w 8K -L ${LOSS_RATE})
 #add_test(NAME t_isoD_128K_8K_lL  COMMAND "${PROJECT_SOURCE_DIR}/txrx.sh" -isDod 128K -w 8K -l ${LOSS_RATE} -L ${LOSS_RATE})
 
+# The check_* targets are custom targets and therefore have no build
+# dependencies of their own. Build every executable first, otherwise running
+# them from an IDE (or right after a clean) fails with "Could not find executable".
+get_property (SPONGE_EXECUTABLES GLOBAL PROPERTY SPONGE_EXECUTABLES)
+
 add_custom_target (check_webget COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R 't_webget'
                               COMMENT "Testing webget...")
+add_dependencies (check_webget ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab0 COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R 't_webget|t_byte_stream|_dt'
                               COMMENT "Testing Lab 0...")
+add_dependencies (check_lab0 ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab1 COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R 't_strm_reassem_|t_byte_stream|_dt'
                               COMMENT "Testing the stream reassembler...")
+add_dependencies (check_lab1 ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab2 COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R 't_recv_|t_wrapping_|t_strm_reassem_|t_byte_stream|_dt'
                               COMMENT "Testing the TCP receiver...")
+add_dependencies (check_lab2 ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab3 COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R 't_send_|t_recv_|t_wrapping_|t_strm_reassem_|t_byte_stream|_dt'
                               COMMENT "Testing the TCP sender...")
+add_dependencies (check_lab3 ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab4 COMMAND "${PROJECT_SOURCE_DIR}/tun.sh" check 144 145
                               COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R "^t_"
                               COMMENT "Testing the TCP connection...")
+add_dependencies (check_lab4 ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab5 COMMAND "${PROJECT_SOURCE_DIR}/tap.sh" check 10
                               COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R '^t_webget|^arp_'
                               COMMENT "Testing Lab 5...")
+add_dependencies (check_lab5 ${SPONGE_EXECUTABLES})
 add_custom_target (check_lab6 COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R '^arp_|^router_'
                               COMMENT "Testing Lab 6...")
+add_dependencies (check_lab6 ${SPONGE_EXECUTABLES})
 
 add_custom_target (check COMMAND "${PROJECT_SOURCE_DIR}/tun.sh" check 144 145
                          COMMAND "${PROJECT_SOURCE_DIR}/tap.sh" check 10
                          COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 10 -R '^t_|^arp_|^router_'
                          COMMENT "Testing libsponge...")
+add_dependencies (check ${SPONGE_EXECUTABLES})
