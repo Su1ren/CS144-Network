@@ -37,6 +37,7 @@ add_test(NAME t_byte_stream_two_writes   COMMAND byte_stream_two_writes)
 add_test(NAME t_byte_stream_capacity     COMMAND byte_stream_capacity)
 add_test(NAME t_byte_stream_many_writes  COMMAND byte_stream_many_writes)
 add_test(NAME t_byte_stream_bench        COMMAND byte_stream_bench)
+add_test(NAME t_strm_reassem_bench       COMMAND stream_reassembler_bench)
 
 add_test(NAME t_webget               COMMAND "${PROJECT_SOURCE_DIR}/tests/webget_t.sh")
 

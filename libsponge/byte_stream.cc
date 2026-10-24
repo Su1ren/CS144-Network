@@ -14,8 +14,10 @@ using namespace std;
 ByteStream::ByteStream(const size_t capacity)
     : _capacity(capacity), _buffer(capacity), _head(0), _size(0), _total_written(0), _total_read(0) {}
 
-size_t ByteStream::write(const string &data) {
-    const size_t n = min(data.size(), remaining_capacity());
+size_t ByteStream::write(const string &data) { return write(data.data(), data.size()); }
+
+size_t ByteStream::write(const char *data, const size_t len) {
+    const size_t n = min(len, remaining_capacity());
     if (n == 0) {
         return 0;
     }
@@ -23,8 +25,8 @@ size_t ByteStream::write(const string &data) {
     const size_t tail = (_head + _size) % _capacity;  // ring buffer 中空闲的起始位置
     const size_t first = min(n, _capacity - tail);    // 第一段拷贝的长度，可能会 wrap-around
 
-    memcpy(_buffer.data() + tail, data.data(), first);       // 拷贝第一段
-    memcpy(_buffer.data(), data.data() + first, n - first);  // 如果数据超过了尾部，拷贝剩余的部分到 ring buffer 的开头
+    memcpy(_buffer.data() + tail, data, first);  // 拷贝第一段
+    memcpy(_buffer.data(), data + first, n - first);  // 如果数据超过了尾部，拷贝剩余的部分到 ring buffer 的开头
 
     _size += n;  // 更新 ring buffer 中的有效数据长度
     _total_written += n;

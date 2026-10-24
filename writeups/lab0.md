@@ -150,3 +150,13 @@ Debug 下约 0.02 s）。要点：
   8–12 倍（≥ 1 KiB）。
 - 结论：所有负载下 vector 版本都不慢于 deque 版本；剩余开销主要来自 `peek_output`/`read` 每次返回
   新 `std::string` 的堆分配，这是接口决定的，与容器选择无关。
+
+## 与 Lab1 的衔接
+
+- Lab1 的 `StreamReassembler` 沿用同样的“固定容量 + 环形下标”思路：乱序字节存放在
+  `capacity` 大小的环形缓冲区中，用 `index % capacity` 定位，并用位图标记哪些位置已收到。
+- 为让 reassembler 的 `flush()` 和顺序流快速路径避免临时 `std::string`，给
+  `ByteStream` 增加了零拷贝重载 `write(const char *data, size_t len)`；
+  `write(const std::string &)` 直接转发到它，行为不变。
+- Lab1 中两种 reassembler 数据结构（`map<start, string>` vs 环形缓冲区 + 位图）的吞吐对比见
+  `lab1.md`。
