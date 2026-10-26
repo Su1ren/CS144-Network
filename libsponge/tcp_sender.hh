@@ -6,8 +6,55 @@
 #include "tcp_segment.hh"
 #include "wrapping_integers.hh"
 
-#include <functional>
+#include <deque>
 #include <queue>
+
+//! \brief The retransmission timer for a TCPSender.
+//!
+//! Tracks the amount of time elapsed since it was started, using only
+//! the time reported by tick() (never the operating system clock, which
+//! keeps the sender deterministic and testable). The timer "expires"
+//! once the elapsed time reaches the current timeout. The TCPSender
+//! uses it to decide when the earliest outstanding segment must be
+//! retransmitted.
+class RetransmissionTimer {
+  public:
+    //! \brief Construct a timer with the given initial timeout
+    //! \param[in] timeout number of milliseconds to wait before expiring
+    RetransmissionTimer(unsigned int timeout) : _timeout(timeout) {}
+
+    //! \brief Restart the timer from zero, so that it expires after
+    //! timeout milliseconds
+    void reset() { _elapsed_time = 0; }
+
+    //! \brief Advance the timer by the given number of milliseconds
+    void tick(size_t ms_since_last_tick) { _elapsed_time += ms_since_last_tick; }
+
+    //! \brief Whether the timer has reached its timeout and expired
+    bool is_expired() const { return _elapsed_time >= _timeout; }
+
+    //! \brief Change the timeout, e.g. to implement exponential backoff
+    void set_timeout(unsigned int timeout) { _timeout = timeout; }
+
+    //! \brief Whether the timer is currently running (i.e. has been started and not yet reset)
+    bool is_running() const { return _running; }
+
+    //! \brief Start the timer, if it is not already running
+    void start() { _running = true; }
+
+    //! \brief Stop the timer, if it is running
+    void stop() { _running = false; }
+
+  private:
+    //! the current amount of time to wait before expiring, in milliseconds
+    unsigned int _timeout;
+
+    //! milliseconds elapsed since the last reset
+    size_t _elapsed_time{0};
+
+    //! Whether the timer is currently running (i.e. has been started and not yet reset)
+    bool _running{false};
+};
 
 //! \brief The "sender" part of a TCP implementation.
 
@@ -29,8 +76,48 @@ class TCPSender {
     //! outgoing stream of bytes that have not yet been sent
     ByteStream _stream;
 
+    //! a segment that has been sent but not yet fully acknowledged
+    struct OutstandingSegment {
+        //! copy of the segment (its payload is a reference-counted Buffer)
+        TCPSegment segment;
+
+        //! absolute sequence number of the segment's first sequence number
+        uint64_t abs_seqno;
+    };
+
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+    //! the outstanding segments that have been sent but not yet acknowledged
+    std::deque<OutstandingSegment> _outstanding_segments;
+
+    //! current retransmission timeout, which may be larger than the initial value due to exponential backoff
+    unsigned int _current_retransmission_timeout{0};
+
+    //! current number of consecutive retransmissions that have occurred in a row
+    unsigned int _consecutive_retransmissions{0};
+
+    //! total bytes in flight, i.e. the number of bytes that have been sent but not yet acknowledged
+    size_t _bytes_in_flight{0};
+
+    //! the retransmission timer for the connection
+    RetransmissionTimer _retransmission_timer{_initial_retransmission_timeout};
+
+    //! current window size, as advertised by the remote receiver
+    uint16_t _window_size{1};
+
+    //! whether the SYN flag has already been sent
+    bool _syn_sent{false};
+
+    //! whether the FIN flag has already been sent
+    bool _fin_sent{false};
+
+    //! the largest absolute ackno received so far
+    uint64_t _last_ackno{0};
+
+    //! push a segment onto the outbound queue and, if it occupies sequence
+    //! space, track it as outstanding and start the retransmission timer
+    void _send_segment(TCPSegment &seg);
 
   public:
     //! Initialize a TCPSender
