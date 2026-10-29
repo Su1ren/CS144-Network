@@ -146,10 +146,10 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         _retransmission_timer.stop();
     }
 
-    // 窗口有新空间则继续发送
-    if (_window_size > _bytes_in_flight) {
-        fill_window();
-    }
+    // 尝试继续发送。这里必须无条件调用 fill_window()：
+    // 当窗口为 0 且 bytes_in_flight 为 0 时，fill_window() 会发送
+    // 1 字节探测段（或 FIN），否则待发数据/FIN 可能永远发不出去。
+    fill_window();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method

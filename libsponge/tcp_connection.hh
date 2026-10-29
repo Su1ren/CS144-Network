@@ -21,6 +21,15 @@ class TCPConnection {
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
 
+    //! \brief 标记连接是否存活
+    bool _active;
+
+    //! \brief 距离上次收到段的时间
+    size_t _time_since_last_segment_received{0};
+
+    //! \brief 清空发送队列
+    void _flush_sender();
+
   public:
     //! \name "Input" interface for the writer
     //!@{
@@ -80,8 +89,18 @@ class TCPConnection {
     bool active() const;
     //!@}
 
-    //! Construct a new connection from a configuration
-    explicit TCPConnection(const TCPConfig &cfg) : _cfg{cfg} {}
+    //! \brief Shut down the connection
+    void shutdown();
+
+    //! \brief Construct a new connection from a configuration
+    explicit TCPConnection(const TCPConfig &cfg)
+        : _cfg{cfg}
+        , _receiver{cfg.recv_capacity}
+        , _sender{cfg.send_capacity, cfg.rt_timeout, cfg.fixed_isn}
+        , _segments_out{}
+        , _linger_after_streams_finish{true}
+        , _active{true}
+        , _time_since_last_segment_received{0} {}
 
     //! \name construction and destruction
     //! moving is allowed; copying is disallowed; default construction not possible
