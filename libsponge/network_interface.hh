@@ -40,6 +40,23 @@ class NetworkInterface {
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
 
+    //! \brief 上次一次触发 tick 的时间
+    size_t _last_tick_time{0};
+
+    struct ArpEntry {
+        EthernetAddress ethernet_address{};
+        size_t expires_at{};
+    };
+
+    //! \brief ARP cache mapping IP addresses to Ethernet Entries, which contain the Ethernet address and expiration time
+    std::unordered_map<uint32_t, ArpEntry> _arp_cache_map{};
+
+    //! \brief 等待发送的数据包队列，存储到达下一跳 IP 地址的所有数据报
+    std::unordered_map<uint32_t, std::queue<InternetDatagram>> _waiting_datagrams_map{};
+
+    //! \brief 单独记录每个 IP 发送的 ARP 请求的时间，避免频繁发送 ARP 请求
+    std::unordered_map<uint32_t, size_t> _last_arp_request_time_map{};
+
   public:
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses
     NetworkInterface(const EthernetAddress &ethernet_address, const Address &ip_address);
@@ -62,6 +79,9 @@ class NetworkInterface {
 
     //! \brief Called periodically when time elapses
     void tick(const size_t ms_since_last_tick);
+
+    //! \brief learn the IP to mac mapping from the ARP request or reply, then immediately flush the waiting datagrams to the updated mac address
+    void learn_arp_mapping(uint32_t ip, const EthernetAddress &ethernet_address);
 };
 
 #endif  // SPONGE_LIBSPONGE_NETWORK_INTERFACE_HH

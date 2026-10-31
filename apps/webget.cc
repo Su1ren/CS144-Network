@@ -6,6 +6,31 @@
 using namespace std;
 
 void get_URL(const string &host, const string &path) {
+    // 使用 FullStackSocket
+    FullStackSocket socket;
+    Address addr(host, "http");
+    socket.connect(addr);
+    // 构造 HTTP 请求报文（请求行必须是 "GET <path> HTTP/1.1" 这一整行）
+    string request = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n";
+    // 发送请求报文
+    socket.write(request);
+    // 读取服务器响应并打印
+    while (true) {
+        // 尝试读取 socket 中的数据
+        Buffer buffer = socket.read();
+        if (buffer.size() == 0) {
+            // 如果读取到的数据为空，说明已经到达 EOF，退出循环
+            break;
+        }
+        // 打印读取到的数据
+        cout << buffer.str();
+    }
+    socket.wait_until_closed();
+    cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
+    return;
+}
+
+void get_URL_LEVEL4(const string &host, const string &path) {
     // 使用 CS144TCPSocket
     CS144TCPSocket socket;
     Address addr(host, "http");
