@@ -222,6 +222,7 @@ This lab took me about [n] hours to do. I [did/did not] attend the lab session.
   每秒 1000 次 tick 就占 1% CPU；若 Lab 6 某个路由器接口真有上千
   邻居，可只替换私有成员切到 B，公共接口不变。当前实验规模
   （n=1~8）落在交叉点的另一侧，A 更合适。
+- 跨实验的总结与判断清单见 `writeups/performance-methodology.md`。
 
 Program Structure and Design of the NetworkInterface:
 []
