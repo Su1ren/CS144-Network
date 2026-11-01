@@ -1,23 +1,8 @@
 #include "router.hh"
 
-#include <iostream>
-#include <limits>
+#include <algorithm>
 
 using namespace std;
-
-// Dummy implementation of an IP router
-
-// Given an incoming Internet datagram, the router decides
-// (1) which interface to send it out on, and
-// (2) what next hop address to send it to.
-
-// For Lab 6, please replace with a real implementation that passes the
-// automated checks run by `make check_lab6`.
-
-// You will need to add private members to the class declaration in `router.hh`
-
-template <typename... Targs>
-void DUMMY_CODE(Targs &&.../* unused */) {}
 
 //! \param[in] route_prefix The "up-to-32-bit" IPv4 address prefix to match the datagram's destination address against
 //! \param[in] prefix_length For this route to be applicable, how many high-order (most-significant) bits of the route_prefix will need to match the corresponding bits of the datagram's destination address?
@@ -27,46 +12,30 @@ void Router::add_route(const uint32_t route_prefix,
                        const uint8_t prefix_length,
                        const optional<Address> next_hop,
                        const size_t interface_num) {
-    cerr << "DEBUG: adding route " << Address::from_ipv4_numeric(route_prefix).ip() << "/" << int(prefix_length)
-         << " => " << (next_hop.has_value() ? next_hop->ip() : "(direct)") << " on interface " << interface_num << "\n";
-
-    _routing_table.push_back(RouteEntry(route_prefix,
-                                        prefix_length,
-                                        next_hop,
-                                        interface_num,
-                                        prefix_length == 0 ? 0 : numeric_limits<int>::min() >> (prefix_length - 1)));
+    // Storing the rule is all this method has to do; the routing table decides
+    // how to index it. Re-adding an identical prefix replaces the old entry.
+    _routing_table->insert({route_prefix, prefix_length, next_hop, interface_num});
 }
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-    // check TTL
-    if (dgram.header().ttl <= 1)
-        return;
-    // longest prefix match
-    uint32_t destination = dgram.header().dst;
-    int match_idx = -1;
-    int max_matched_len = -1;
-    for (size_t i = 0; i < _routing_table.size(); i++) {
-        auto mask = _routing_table[i]._prefix_mask;
-        if ((destination & mask) == _routing_table[i]._route_prefix &&
-            max_matched_len < _routing_table[i]._prefix_length) {
-            match_idx = i;
-            max_matched_len = _routing_table[i]._prefix_length;
-        }
+    const auto best_route = _routing_table->lookup(dgram.header().dst);
+    if (not best_route.has_value()) {
+        return;  // no route to the destination: drop the datagram
     }
-    // if no match, drop the datagram
-    if (match_idx == -1)
+
+    // Decrement the TTL. A datagram whose TTL is already zero, or that reaches
+    // zero after the decrement, is dropped.
+    if (dgram.header().ttl <= 1) {
         return;
-    // decrement TTL
-    dgram.header().ttl -= 1;
-    // send the datagram
-    auto next_hop = _routing_table[match_idx]._next_hop;
-    auto interface_num = _routing_table[match_idx]._interface_num;
-    if (next_hop.has_value()) {
-        _interfaces[interface_num].send_datagram(dgram, next_hop.value());
-    } else {
-        _interfaces[interface_num].send_datagram(dgram, Address::from_ipv4_numeric(destination));
     }
+    --dgram.header().ttl;
+
+    // For a directly attached network the next hop is the final destination;
+    // otherwise it is the next router along the path.
+    const Address next_hop = best_route->next_hop.has_value() ? best_route->next_hop.value()
+                                                              : Address::from_ipv4_numeric(dgram.header().dst);
+    interface(best_route->interface_num).send_datagram(dgram, next_hop);
 }
 
 void Router::route() {
@@ -78,4 +47,92 @@ void Router::route() {
             queue.pop();
         }
     }
+}
+
+void TrieRoutingTable::insert_at(std::unique_ptr<Node> &slot, const RouteEntry &entry, size_t &node_count) {
+    // Empty slot: this prefix is the only one on this path.
+    if (not slot) {
+        slot = std::make_unique<Node>();
+        ++node_count;
+        slot->key = entry.route_prefix & routing_detail::prefix_mask(entry.prefix_length);
+        slot->depth = entry.prefix_length;
+        slot->has_route = true;
+        slot->entry = entry;
+        return;
+    }
+
+    Node &node = *slot;
+    const uint32_t prefix = entry.route_prefix;
+    const uint8_t length = entry.prefix_length;
+
+    // Number of leading bits shared by this node's prefix and the new prefix,
+    // limited to the common length of both prefixes.
+    const unsigned shared = std::min(routing_detail::first_differing_bit(node.key, prefix),
+                                     static_cast<unsigned>(std::min(node.depth, length)));
+
+    if (shared == node.depth) {
+        if (length == node.depth) {
+            // Same prefix: replace the old rule.
+            node.has_route = true;
+            node.entry = entry;
+            return;
+        }
+        // The new prefix extends this node's path: keep descending.
+        insert_at(node.child[routing_detail::bit_at(prefix, node.depth) ? 1 : 0], entry, node_count);
+        return;
+    }
+
+    if (shared == length) {
+        // The new prefix is an ancestor of this node: insert it above.
+        auto ancestor = std::make_unique<Node>();
+        ++node_count;
+        ancestor->key = prefix & routing_detail::prefix_mask(length);
+        ancestor->depth = length;
+        ancestor->has_route = true;
+        ancestor->entry = entry;
+        ancestor->child[routing_detail::bit_at(node.key, length) ? 1 : 0] = std::move(slot);
+        slot = std::move(ancestor);
+        return;
+    }
+
+    // The two prefixes diverge at bit `shared`: create a branch node that holds
+    // the existing subtree and the new leaf as its two children.
+    auto branch = std::make_unique<Node>();
+    ++node_count;
+    branch->key = prefix & routing_detail::prefix_mask(static_cast<uint8_t>(shared));
+    branch->depth = static_cast<uint8_t>(shared);
+
+    auto leaf = std::make_unique<Node>();
+    ++node_count;
+    leaf->key = prefix & routing_detail::prefix_mask(length);
+    leaf->depth = length;
+    leaf->has_route = true;
+    leaf->entry = entry;
+
+    branch->child[routing_detail::bit_at(node.key, shared) ? 1 : 0] = std::move(slot);
+    branch->child[routing_detail::bit_at(prefix, shared) ? 1 : 0] = std::move(leaf);
+    slot = std::move(branch);
+}
+
+std::optional<RouteEntry> TrieRoutingTable::lookup(uint32_t dest_addr) const {
+    // The root is the default route (prefix length zero), if it was installed.
+    const Node *node = _root.get();
+    std::optional<RouteEntry> best_route = node->has_route ? std::optional<RouteEntry>(node->entry) : std::nullopt;
+
+    while (node->depth < 32) {
+        const Node *child = node->child[routing_detail::bit_at(dest_addr, node->depth) ? 1 : 0].get();
+        if (child == nullptr) {
+            break;
+        }
+        // A compressed edge must still match the bits it skips over.
+        if (not routing_detail::same_prefix(child->key, dest_addr, child->depth)) {
+            break;
+        }
+        // The longest match may be an internal node, so remember every hit.
+        if (child->has_route) {
+            best_route = child->entry;
+        }
+        node = child;
+    }
+    return best_route;
 }
